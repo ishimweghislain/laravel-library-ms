@@ -34,8 +34,17 @@ class BorrowingTransactionController extends Controller
         ]);
         
         $book = Book::find($validated['book_id']);
-        if ($book->borrowed_by || $book->available_copies <= 0) {
-            return back()->withErrors(['book_id' => 'This book is not available for borrowing.']);
+        if ($book->borrowed_by) {
+            $borrower = User::find($book->borrowed_by);
+            return back()->withErrors([
+                'book_id' => "This book is currently borrowed by {$borrower->name} and has not been returned."
+            ]);
+        }
+        
+        if ($book->available_copies <= 0) {
+            return back()->withErrors([
+                'book_id' => 'This book has no available copies for borrowing.'
+            ]);
         }
 
         $transaction = BorrowingTransaction::create($validated);
@@ -73,6 +82,22 @@ class BorrowingTransactionController extends Controller
             'return_date' => 'nullable|date|after:borrow_date',
             'status' => 'required|in:borrowed,returned',
         ]);
+        
+        // If updating to a different book, check availability
+        if ($borrowingTransaction->book_id != $validated['book_id']) {
+            $newBook = Book::find($validated['book_id']);
+            if ($newBook->borrowed_by) {
+                $borrower = User::find($newBook->borrowed_by);
+                return back()->withErrors([
+                    'book_id' => "This book is currently borrowed by {$borrower->name} and has not been returned."
+                ]);
+            }
+            if ($newBook->available_copies <= 0) {
+                return back()->withErrors([
+                    'book_id' => 'This book has no available copies for borrowing.'
+                ]);
+            }
+        }
         
         $borrowingTransaction->update($validated);
         return redirect()->route('borrowing_transactions.index')->with('success', 'Transaction updated successfully');
